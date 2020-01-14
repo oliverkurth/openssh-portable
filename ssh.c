@@ -1754,6 +1754,17 @@ main(int ac, char **av)
 	ssh_login(ssh, &sensitive_data, host, (struct sockaddr *)&hostaddr,
 	    options.port, pw, timeout_ms, cinfo);
 
+	if (ssh_packet_connection_is_on_socket(ssh)) {
+		if (ssh_packet_connection_af(ssh) == AF_LOCAL) {
+			verbose("Authenticated to %s.", host);
+		} else {
+			verbose("Authenticated to %s ([%s]:%d).", host,
+			    ssh_remote_ipaddr(ssh), ssh_remote_port(ssh));
+		}
+	} else {
+		verbose("Authenticated to %s (via proxy).", host);
+	}
+
 	/* We no longer need the private host keys.  Clear them now. */
 	if (sensitive_data.nkeys != 0) {
 		for (i = 0; i < sensitive_data.nkeys; i++) {
