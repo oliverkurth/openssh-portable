@@ -450,8 +450,7 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 {
 	int on = 1, saved_timeout_ms = *timeout_ms;
 	int oerrno, sock = -1, attempt;
-	char ntop[NI_MAXHOST];
-	char strport[6 /* strlen(" port ") */ + NI_MAXSERV];
+	char ntop[NI_MAXHOST], strport[NI_MAXSERV];
 	struct addrinfo *ai;
 
 	debug3_f("entering");
