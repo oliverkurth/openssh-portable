@@ -19,6 +19,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #ifdef HAVE_SYS_TIME_H
 # include <sys/time.h>
 #endif
@@ -453,7 +454,7 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 	char ntop[NI_MAXHOST], strport[NI_MAXSERV];
 	struct addrinfo *ai;
 
-	debug3_f("entering");
+	debug3_f("entering, host=%s", host);
 	memset(ntop, 0, sizeof(ntop));
 	memset(strport, 0, sizeof(strport));
 
@@ -474,13 +475,19 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 				errno = EAFNOSUPPORT;
 				continue;
 			}
-			if (getnameinfo(ai->ai_addr, ai->ai_addrlen,
-			    ntop, sizeof(ntop), strport, sizeof(strport),
-			    NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
-				oerrno = errno;
-				error_f("getnameinfo failed");
-				errno = oerrno;
-				continue;
+			if (ai->ai_family != AF_UNIX) {
+				if (getnameinfo(ai->ai_addr, ai->ai_addrlen,
+			            ntop, sizeof(ntop), strport, sizeof(strport),
+			            NI_NUMERICHOST|NI_NUMERICSERV) != 0) {
+					oerrno = errno;
+					error_f("getnameinfo failed");
+					errno = oerrno;
+					continue;
+				}
+				debug("Connecting to %.200s [%.100s]%s.",
+					host, ntop, strport);
+			} else {
+				debug("Connecting to %.200s", host);
 			}
 			if (options.address_family != AF_UNSPEC &&
 			    ai->ai_family != options.address_family) {
@@ -515,8 +522,13 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 				break;
 			} else {
 				oerrno = errno;
-				debug("connect to %s%s: %s",
-				    ntop, strport, strerror(errno));
+				if (ai->ai_family != AF_UNIX) {
+					debug("connect to %s port %s: %s",
+					    ntop, strport, strerror(errno));
+				} else {
+					debug("connect to %s: %s",
+					    host, strerror(errno));
+				}
 				close(sock);
 				sock = -1;
 				errno = oerrno;
@@ -528,8 +540,13 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 
 	/* Return failure if we didn't get a successful connection. */
 	if (sock == -1) {
-		error("ssh: connect to %s%s: %s",
-		    host, strport, errno == 0 ? "failure" : strerror(errno));
+		if (aitop->ai_family != AF_UNIX) {
+			error("ssh: connect to %s port %s: %s",
+			    host, strport, errno == 0 ? "failure" : strerror(errno));
+		} else {
+			error("ssh: connect to %s: %s",
+			    host, errno == 0 ? "failure" : strerror(errno));
+		}
 		return -1;
 	}
 
@@ -641,6 +658,9 @@ get_hostfile_hostname_ipaddr(char *hostname, struct sockaddr *hostaddr,
 	case AF_INET6:
 		addrlen = sizeof(struct sockaddr_in6);
 		break;
+	case AF_UNIX:
+		addrlen = sizeof(struct sockaddr_un);
+		break;
 	default:
 		addrlen = sizeof(struct sockaddr);
 		break;
@@ -650,7 +670,9 @@ get_hostfile_hostname_ipaddr(char *hostname, struct sockaddr *hostaddr,
 	 * We don't have the remote ip-address for connections
 	 * using a proxy command
 	 */
-	if (hostfile_ipaddr != NULL) {
+	if (hostaddr != NULL &&
+		hostaddr->sa_family != AF_UNIX &&
+		hostfile_ipaddr != NULL) {
 		if (options.proxy_command == NULL) {
 			if (getnameinfo(hostaddr, addrlen,
 			    ntop, sizeof(ntop), NULL, 0, NI_NUMERICHOST) != 0)
@@ -1578,7 +1600,8 @@ ssh_login(struct ssh *ssh, Sensitive *sensitive, const char *orighost,
 
 	/* Convert the user-supplied hostname into all lowercase. */
 	host = xstrdup(orighost);
-	lowercase(host);
+	if (hostaddr->sa_family != AF_UNIX)
+		lowercase(host);
 
 	/* Exchange protocol version identification strings with the server. */
 	if ((r = kex_exchange_identification(ssh, timeout_ms, NULL)) != 0)
@@ -1589,7 +1612,7 @@ ssh_login(struct ssh *ssh, Sensitive *sensitive, const char *orighost,
 
 	/* key exchange */
 	/* authenticate user */
-	if (hostaddr->sa_family == AF_LOCAL) {
+	if (hostaddr->sa_family == AF_UNIX) {
 		debug("Authenticating to %s as '%s'", host, server_user);
 	} else {
 		debug("Authenticating to %s:%d as '%s'", host, port,
