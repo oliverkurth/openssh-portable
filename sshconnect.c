@@ -497,15 +497,6 @@ ssh_connect_direct(struct ssh *ssh, const char *host, struct addrinfo *aitop,
 				continue;
 			}
 
-			if (ai->ai_family == AF_LOCAL) {
-				memset(strport, 0, sizeof(strport));
-			} else {
-				snprintf(strport, sizeof(strport), " port %s",
-				    strport);
-			}
-			debug("Connecting to %.200s [%.100s]%s.",
-				host, ntop, strport);
-
 			/* Create a socket for connecting. */
 			sock = ssh_create_socket(ai);
 			if (sock < 0) {
