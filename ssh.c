@@ -1179,7 +1179,7 @@ main(int ac, char **av)
 	if (!host)
 		usage();
 
-	if (!valid_hostname(host))
+	if (host[0] != '/' && !valid_hostname(host))
 		fatal("hostname contains invalid characters");
 	if (options.user != NULL && !valid_ruser(options.user))
 		fatal("remote username contains invalid characters");
