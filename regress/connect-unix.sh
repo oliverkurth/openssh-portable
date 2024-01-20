@@ -4,7 +4,7 @@ SCRIPT_DIR=`dirname $0`
 
 start_sshd_unix()
 {
-	${SUDO} env NC=${NC} SSHD=${SSHD} OBJ=${OBJ} ${SCRIPT_DIR}/sshd-unix.sh&
+	${SUDO} env NC=${NC} SSHD=${SSHD} OBJ=${OBJ} ${SCRIPT_DIR}/sshd-unix.sh
 
 	trace "wait for sshd-unix"
 	i=0;
